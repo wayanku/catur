@@ -148,6 +148,17 @@
     <script src="https://unpkg.com/peerjs@1.4.7/dist/peerjs.min.js"></script>
 
     <script>
+        // Konfigurasi ID Singkat
+        const APP_PREFIX = "chess-p2p-room-"; // Namespace agar tidak bentrok secara global
+        function generateShortId(length = 6) {
+            const chars = 'ABCDEFGHJKLMNPQRSTUVWXYZ23456789'; // Tanpa I, O, 1, 0 agar tidak membingungkan
+            let result = '';
+            for (let i = 0; i < length; i++) {
+                result += chars.charAt(Math.floor(Math.random() * chars.length));
+            }
+            return result;
+        }
+
         // Fix untuk error [Intervention]: Ignored attempt to cancel a touchmove event
         // Memaksa jQuery untuk menggunakan listener non-pasif agar preventDefault() bekerja
         jQuery.event.special.touchstart = {
@@ -163,7 +174,7 @@
 
         var board = null
         var game = new Chess()
-        var peer = new Peer() // Inisialisasi P2P
+        var peer = new Peer(APP_PREFIX + generateShortId(4)) // Inisialisasi P2P dengan ID 4 Karakter
         var conn = null
         var currentPieceTheme = 'wikipedia'
         var myRole = null // 'w' (white) atau 'b' (black)
@@ -197,8 +208,20 @@
 
         // 1. Inisialisasi Peer ID
         peer.on('open', function(id) {
-            $('#myId').val(id)
+            // Tampilkan hanya bagian kode singkatnya saja ke user
+            const shortId = id.replace(APP_PREFIX, '');
+            $('#myId').val(shortId);
             if ($('#gameMode').val() === 'p2p') log("ID Anda siap. Silakan bagikan.");
+        });
+
+        // Handle jika ID sudah terpakai (jarang terjadi tapi mungkin)
+        peer.on('error', function(err) {
+            if (err.type === 'unavailable-id') {
+                log("ID bentrok, mencoba membuat ID baru...");
+                setTimeout(() => location.reload(), 1000);
+            } else {
+                console.error("PeerJS Error:", err);
+            }
         });
 
         // 2. Menunggu Koneksi Masuk (Pemain 1)
@@ -221,7 +244,8 @@
             if ($('#gameMode').val() !== 'p2p') return;
             if (!peerId) return alert("Masukkan ID Lawan dulu!");
             
-            conn = peer.connect(peerId);
+            // Tambahkan prefix kembali saat mencoba menghubungkan
+            conn = peer.connect(APP_PREFIX + peerId.toUpperCase().trim());
             myRole = 'b';
             setupConnection();
             board.orientation('black');
@@ -417,14 +441,14 @@
             }
         }
 
-        function applyTheme(white, black, btn) {
+        window.applyTheme = function(white, black, btn) {
             document.documentElement.style.setProperty('--square-white', white);
             document.documentElement.style.setProperty('--square-black', black);
             $('.theme-btn').removeClass('active border-emerald-500/50').addClass('border-white/5');
             $(btn).addClass('active border-emerald-500/50').removeClass('border-white/5');
         }
 
-        function applyPieces(type, btn) {
+        window.applyPieces = function(type, btn) {
             currentPieceTheme = type;
             $('.piece-btn').removeClass('active border-emerald-500/50').addClass('border-white/5');
             $(btn).addClass('active border-emerald-500/50').removeClass('border-white/5');
@@ -433,21 +457,24 @@
             var currentOri = board.orientation();
             board.destroy();
             
-            config.pieceTheme = 'https://chessboardjs.com/img/chesspieces/' + type + '/{piece}.png';
+            // Menggunakan CDN yang lebih andal untuk berbagai tema bidak
+            const themePath = type === 'wikipedia' 
+                ? 'https://chessboardjs.com/img/chesspieces/wikipedia/{piece}.png'
+                : 'https://cdn.jsdelivr.net/gh/clarkerubber/chessboardjs-themes@master/public/img/chesspieces/' + type + '/{piece}.png';
+
+            config.pieceTheme = themePath;
             board = Chessboard('myBoard', config);
             board.position(currentPos, false);
             board.orientation(currentOri);
         }
 
-        function playSound(id) {
-            document.getElementById('sfx-' + id).play();
+        window.toggleModal = function(id) {
+            const $modal = $('#' + id);
+            $modal.toggleClass('active');
+            $modal.css('display', $modal.hasClass('active') ? 'flex' : 'none');
         }
 
-        function toggleModal(id) {
-            $('#' + id).toggleClass('active');
-        }
-
-        function copyId() {
+        window.copyId = function() {
             var idVal = $('#myId').val();
             navigator.clipboard.writeText(idVal);
             
@@ -457,6 +484,10 @@
             setTimeout(() => {
                 $btn.text(originalText).removeClass('bg-emerald-600');
             }, 2000);
+        }
+
+        function playSound(id) {
+            document.getElementById('sfx-' + id).play();
         }
 
         function log(msg) {
@@ -481,5 +512,52 @@
         });
         setTimeout(() => board.resize(), 500);
     </script>
+
+    <!-- Settings Modal (Diletakkan di luar kontainer utama untuk stabilitas visual) -->
+    <div id="settingsModal" class="modal" style="display: none;">
+        <div class="glass p-6 rounded-3xl w-[90%] max-w-md">
+            <div class="flex justify-between items-center mb-6">
+                <h2 class="text-xl font-bold text-emerald-400">PENGATURAN</h2>
+                <button onclick="toggleModal('settingsModal')" class="text-slate-400">✕</button>
+            </div>
+            
+            <div class="space-y-6">
+                <!-- Theme Selector -->
+                <div>
+                    <label class="block text-[10px] font-bold text-slate-500 uppercase tracking-widest mb-3">Tema Papan</label>
+                    <div class="grid grid-cols-2 gap-3">
+                        <button onclick="applyTheme('#edeed1', '#779556', this)" class="theme-btn active bg-slate-800 p-3 rounded-xl border border-emerald-500/50 flex items-center gap-2">
+                            <div class="w-4 h-4 rounded bg-[#779556]"></div> <span class="text-[11px]">Green</span>
+                        </button>
+                        <button onclick="applyTheme('#ebecd0', '#739552', this)" class="theme-btn bg-slate-800 p-3 rounded-xl border border-white/5 flex items-center gap-2">
+                            <div class="w-4 h-4 rounded bg-[#739552]"></div> <span class="text-[11px]">Lichess</span>
+                        </button>
+                        <button onclick="applyTheme('#dee3e6', '#8ca2ad', this)" class="theme-btn bg-slate-800 p-3 rounded-xl border border-white/5 flex items-center gap-2">
+                            <div class="w-4 h-4 rounded bg-[#8ca2ad]"></div> <span class="text-[11px]">Bases</span>
+                        </button>
+                        <button onclick="applyTheme('#e2e2e2', '#525252', this)" class="theme-btn bg-slate-800 p-3 rounded-xl border border-white/5 flex items-center gap-2">
+                            <div class="w-4 h-4 rounded bg-[#525252]"></div> <span class="text-[11px]">Grey</span>
+                        </button>
+                    </div>
+                </div>
+
+                <!-- Pieces Selector -->
+                <div>
+                    <label class="block text-[10px] font-bold text-slate-500 uppercase tracking-widest mb-3">Gaya Bidak</label>
+                    <div class="grid grid-cols-2 gap-3">
+                        <button onclick="applyPieces('wikipedia', this)" class="piece-btn active bg-slate-800 p-3 rounded-xl border border-emerald-500/50 text-[11px]">Wikipedia</button>
+                        <button onclick="applyPieces('alpha', this)" class="piece-btn bg-slate-800 p-3 rounded-xl border border-white/5 text-[11px]">Alpha</button>
+                        <button onclick="applyPieces('neo', this)" class="piece-btn bg-slate-800 p-3 rounded-xl border border-white/5 text-[11px]">Neo</button>
+                        <button onclick="applyPieces('cburnett', this)" class="piece-btn bg-slate-800 p-3 rounded-xl border border-white/5 text-[11px]">CBurnett</button>
+                    </div>
+                </div>
+
+                <div class="pt-4">
+                    <button onclick="toggleModal('settingsModal')" class="w-full bg-emerald-600 p-3 rounded-xl text-xs font-bold uppercase tracking-widest">Simpan & Tutup</button>
+                </div>
+            </div>
+        </div>
+    </div>
+
 </body>
 </html>
