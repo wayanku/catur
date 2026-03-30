@@ -1,0 +1,177 @@
+<!DOCTYPE html>
+<html lang="id">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Chess Online - P2P Edition</title>
+    
+    <script src="https://cdn.tailwindcss.com"></script>
+    <link rel="stylesheet" href="https://unpkg.com/@chrisoakman/chessboardjs@1.0.0/dist/chessboard-1.0.0.min.css">
+    
+    <style>
+        body { background-color: #0f172a; color: white; }
+        .white-1e1d7 { background-color: #f0d9b5 !important; }
+        .black-3c85d { background-color: #b58863 !important; }
+        #myBoard { border: 8px solid #1e293b; border-radius: 12px; box-shadow: 0 25px 50px -12px rgba(0, 0, 0, 0.5); }
+    </style>
+</head>
+<body class="min-h-screen flex items-center justify-center p-4">
+
+    <div class="max-w-5xl w-full grid grid-cols-1 lg:grid-cols-3 gap-8">
+        
+        <!-- Sisi Kiri: Papan -->
+        <div class="lg:col-span-2 flex flex-col items-center">
+            <div id="myBoard" class="w-full max-w-[500px]"></div>
+            <div id="gameInfo" class="mt-4 text-emerald-400 font-bold text-lg">Menunggu koneksi...</div>
+        </div>
+
+        <!-- Sisi Kanan: Panel Kontrol -->
+        <div class="flex flex-col space-y-4">
+            <div class="bg-slate-800 p-6 rounded-2xl shadow-xl border border-slate-700">
+                <h1 class="text-2xl font-bold mb-4">Chess Online 🌐</h1>
+                
+                <!-- Setup Koneksi -->
+                <div class="space-y-4">
+                    <div>
+                        <label class="block text-xs text-slate-400 mb-1">ID ANDA (Kirim ke teman):</label>
+                        <div class="flex gap-2">
+                            <input id="myId" readonly class="bg-slate-900 border border-slate-700 p-2 rounded w-full text-sm text-yellow-400 font-mono">
+                        </div>
+                    </div>
+
+                    <hr class="border-slate-700">
+
+                    <div>
+                        <label class="block text-xs text-slate-400 mb-1">ID LAWAN:</label>
+                        <div class="flex gap-2">
+                            <input id="peerId" type="text" placeholder="Masukkan ID teman..." class="bg-slate-900 border border-slate-700 p-2 rounded w-full text-sm outline-none focus:border-emerald-500 text-white">
+                            <button onclick="connectToPeer()" class="bg-emerald-600 hover:bg-emerald-500 px-4 py-2 rounded text-sm font-bold transition">Hubungkan</button>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <div class="bg-slate-800 p-6 rounded-2xl shadow-xl border border-slate-700 flex-grow">
+                <h2 class="font-semibold mb-2">Log Permainan</h2>
+                <div id="status-box" class="text-sm text-slate-300 space-y-1 h-40 overflow-y-auto font-mono">
+                    <li>Buka game ini di dua tab atau dua komputer berbeda untuk mencoba.</li>
+                </div>
+            </div>
+            
+            <button onclick="location.reload()" class="bg-slate-700 hover:bg-slate-600 p-2 rounded-lg text-xs">Muat Ulang (Reset Semua)</button>
+        </div>
+    </div>
+
+    <!-- Scripting -->
+    <script src="https://code.jquery.com/jquery-3.5.1.min.js"></script>
+    <script src="https://unpkg.com/@chrisoakman/chessboardjs@1.0.0/dist/chessboard-1.0.0.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/chess.js/0.10.3/chess.min.js"></script>
+    <script src="https://unpkg.com/peerjs@1.4.7/dist/peerjs.min.js"></script>
+
+    <script>
+        var board = null
+        var game = new Chess()
+        var peer = new Peer() // Inisialisasi P2P
+        var conn = null
+        var myRole = null // 'w' (white) atau 'b' (black)
+
+        // 1. Inisialisasi Peer ID
+        peer.on('open', function(id) {
+            $('#myId').val(id)
+            log("ID Anda siap. Silakan bagikan.");
+        });
+
+        // 2. Menunggu Koneksi Masuk (Pemain 1)
+        peer.on('connection', function(c) {
+            if (conn) return; // Tolak jika sudah ada pemain lain
+            conn = c;
+            myRole = 'w';
+            setupConnection();
+            log("Teman terhubung! Anda sebagai Putih.");
+            $('#gameInfo').text("Giliran Anda (Putih)");
+        });
+
+        // 3. Menghubungkan ke Lawan (Pemain 2)
+        function connectToPeer() {
+            var peerId = $('#peerId').val();
+            if (!peerId) return alert("Masukkan ID Lawan dulu!");
+            
+            conn = peer.connect(peerId);
+            myRole = 'b';
+            setupConnection();
+            board.orientation('black');
+            log("Terhubung ke lawan! Anda sebagai Hitam.");
+            $('#gameInfo').text("Menunggu Putih melangkah...");
+        }
+
+        function setupConnection() {
+            conn.on('data', function(data) {
+                // Menerima langkah dari lawan
+                game.move(data);
+                board.position(game.fen());
+                updateStatus();
+            });
+            
+            conn.on('open', function() {
+                updateStatus();
+            });
+        }
+
+        // Logika Papan Catur
+        function onDragStart (source, piece, position, orientation) {
+            if (game.game_over()) return false;
+            if (!conn) return false; // Jangan jalan sebelum terhubung
+            
+            // Hanya bisa jalan jika giliran sesuai role
+            if ((myRole === 'w' && piece.search(/^b/) !== -1) ||
+                (myRole === 'b' && piece.search(/^w/) !== -1) ||
+                (game.turn() !== myRole)) {
+                return false;
+            }
+        }
+
+        function onDrop (source, target) {
+            var move = game.move({
+                from: source,
+                to: target,
+                promotion: 'q'
+            })
+
+            if (move === null) return 'snapback'
+
+            // Kirim langkah ke lawan via P2P
+            conn.send(move);
+            updateStatus();
+        }
+
+        function onSnapEnd () {
+            board.position(game.fen())
+        }
+
+        function updateStatus() {
+            var turn = game.turn() === 'w' ? "Putih" : "Hitam";
+            var statusText = "Giliran: " + turn;
+
+            if (game.in_checkmate()) statusText = "GAME OVER: " + turn + " Kalah!";
+            else if (game.in_draw()) statusText = "GAME OVER: Remis!";
+            
+            $('#gameInfo').text(statusText);
+            log("Langkah: " + (game.history().slice(-1)[0] || "Game Dimulai"));
+        }
+
+        function log(msg) {
+            $('#status-box').prepend('<div>> ' + msg + '</div>');
+        }
+
+        var config = {
+            draggable: true,
+            position: 'start',
+            onDragStart: onDragStart,
+            onDrop: onDrop,
+            onSnapEnd: onSnapEnd,
+            pieceTheme: 'https://chessboardjs.com/img/chesspieces/wikipedia/{piece}.png'
+        }
+        board = Chessboard('myBoard', config)
+    </script>
+</body>
+</html>
