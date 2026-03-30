@@ -117,9 +117,29 @@
         }
         .modal.active { display: flex; }
         .btn-gradient { background: linear-gradient(135deg, #6366f1, #4f46e5); }
+
+        /* Social Hub Styles */
+        #socialHub { transform: translateX(100%); transition: transform 0.4s cubic-bezier(0.4, 0, 0.2, 1); z-index: 80; }
+        #socialHub.active { transform: translateX(0); }
+        .glass-dark { background: rgba(2, 6, 23, 0.95); backdrop-filter: blur(20px); border-left: 1px solid rgba(255,255,255,0.1); }
+        
+        /* Username Overlay */
+        #usernameOverlay { z-index: 100; background: radial-gradient(circle at top right, #1e1b4b, #020617); }
     </style>
 </head>
 <body class="min-h-screen flex items-center justify-center p-4">
+
+    <!-- Username Selection Overlay -->
+    <div id="usernameOverlay" class="fixed inset-0 flex flex-col items-center justify-center p-6 text-center">
+        <div class="max-w-sm w-full space-y-8 animate-fade-in">
+            <h1 class="text-4xl font-black bg-clip-text text-transparent bg-gradient-to-r from-indigo-400 to-emerald-400 italic">CHESS PRO</h1>
+            <div class="glass p-8 rounded-[32px] space-y-6">
+                <p class="text-slate-400 text-sm">Masukkan nama unik Anda untuk mulai mabar dan chatting.</p>
+                <input id="userNameInput" type="text" placeholder="Contoh: budi123" class="w-full bg-slate-950 border border-white/10 p-4 rounded-2xl text-center font-bold text-indigo-400 outline-none focus:border-indigo-500 transition-all">
+                <button onclick="saveUsername()" class="btn-gradient w-full p-4 rounded-2xl font-black tracking-widest shadow-xl active:scale-95 transition-all">MASUK SEKARANG</button>
+            </div>
+        </div>
+    </div>
 
     <!-- Sound Effects -->
     <audio id="sfx-move" src="https://cdn.jsdelivr.net/gh/lichess-org/lila@master/public/sound/standard/Move.mp3"></audio>
@@ -129,8 +149,64 @@
 
     <div class="max-w-5xl w-full grid grid-cols-1 lg:grid-cols-3 gap-8">
         
+        <!-- Floating Social Button -->
+        <button onclick="toggleSocialHub()" class="fixed bottom-6 right-6 w-16 h-16 btn-gradient rounded-full shadow-2xl flex items-center justify-center z-[75] active:scale-90 transition-all border-4 border-white/10">
+            <svg xmlns="http://www.w3.org/2000/svg" class="h-8 w-8 text-white" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 12h.01M12 12h.01M16 12h.01M21 12c0 4.418-4.03 8-9 8a9.863 9.863 0 01-4.255-.949L3 20l1.395-3.72C3.512 15.042 3 13.574 3 12c0-4.418 4.03-8 9-8s9 3.582 9 8z" />
+            </svg>
+        </button>
+
+        <!-- Social Hub Panel (WA-like) -->
+        <div id="socialHub" class="fixed inset-y-0 right-0 w-full sm:w-[400px] glass-dark flex flex-col p-6 shadow-[-20px_0_50px_rgba(0,0,0,0.5)]">
+            <div class="flex justify-between items-center mb-8">
+                <div>
+                    <h2 class="text-2xl font-black text-white">CHATS</h2>
+                    <p class="text-[10px] text-emerald-400 font-bold tracking-widest uppercase">Connected P2P</p>
+                </div>
+                <button onclick="toggleSocialHub()" class="text-slate-500 hover:text-white transition">✕</button>
+            </div>
+
+            <!-- Contact Info -->
+            <div class="bg-slate-900/50 p-4 rounded-2xl border border-white/5 mb-6 flex items-center gap-4">
+                <div class="w-12 h-12 bg-indigo-600 rounded-full flex items-center justify-center font-bold text-xl shadow-lg shadow-indigo-500/20" id="socialAvatar">U</div>
+                <div>
+                    <div id="socialName" class="font-bold text-white">Username</div>
+                    <div class="text-[10px] text-slate-500 uppercase tracking-widest" id="socialIdDisplay">ID: ...</div>
+                </div>
+            </div>
+
+            <!-- Call Controls -->
+            <div class="grid grid-cols-2 gap-3 mb-6">
+                <button onclick="toggleMic()" class="flex items-center justify-center gap-2 p-4 bg-slate-900/80 rounded-2xl border border-white/5 hover:bg-slate-800 transition text-slate-400" id="hubMicBtn">
+                    <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 11a7 7 0 01-7 7m0 0a7 7 0 01-7-7m7 7v4m0 0H8m4 0h4m-4-8a3 3 0 01-3-3V5a3 3 0 116 0v6a3 3 0 01-3 3z" /></svg>
+                    <span class="text-[10px] font-bold uppercase tracking-widest">Call</span>
+                </button>
+                <button onclick="toggleVideo()" class="flex items-center justify-center gap-2 p-4 bg-slate-900/80 rounded-2xl border border-white/5 hover:bg-slate-800 transition text-slate-400" id="hubVideoBtn">
+                    <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 10l4.553-2.276A1 1 0 0121 8.618v6.764a1 1 0 01-1.447.894L15 14M5 18h8a2 2 0 002-2V8a2 2 0 00-2-2H5a2 2 0 00-2 2v8a2 2 0 002 2z" /></svg>
+                    <span class="text-[10px] font-bold uppercase tracking-widest">Video</span>
+                </button>
+            </div>
+
+            <!-- Chat Area -->
+            <div class="flex-grow flex flex-col glass rounded-3xl overflow-hidden border border-white/5">
+                <div id="hubChatBox" class="flex-grow p-4 overflow-y-auto flex flex-col space-y-4">
+                    <div class="text-[10px] text-slate-600 text-center uppercase tracking-[0.2em] my-4 italic">End-to-end Encrypted</div>
+                </div>
+                <form onsubmit="submitChatHub(event)" class="p-3 bg-slate-950/80 border-t border-white/5 flex gap-2">
+                    <input id="hubChatInput" type="text" placeholder="Tulis pesan..." class="flex-grow bg-transparent p-2 text-sm outline-none">
+                    <button type="submit" class="w-10 h-10 btn-gradient rounded-xl flex items-center justify-center shadow-lg active:scale-90 transition-all">
+                        <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5 text-white" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 19l9 2-9-18-9 18 9-2zm0 0v-8" /></svg>
+                    </button>
+                </form>
+            </div>
+            
+            <div class="mt-6">
+                <button onclick="toggleSocialHub()" class="w-full p-4 bg-indigo-600/10 text-indigo-400 rounded-2xl text-[10px] font-bold tracking-widest uppercase hover:bg-indigo-600 hover:text-white transition-all">Tutup Menu Chat</button>
+            </div>
+        </div>
+
         <!-- Sisi Kiri: Papan -->
-        <div id="chessboardContainer" class="lg:col-span-2 flex flex-col items-center justify-center order-2 lg:order-1 relative">
+        <div id="chessboardContainer" class="lg:col-span-2 flex flex-col items-center justify-center order-2 lg:order-1 relative opacity-0 pointer-events-none">
             
             <!-- Video Call Overlay -->
             <div class="video-container hidden" id="videoArea">
@@ -157,60 +233,15 @@
 
             <div id="myBoard" class="w-full max-w-[500px]"></div>
             
-            <!-- HUD Bawah (Anda) -->
-            <div class="w-full max-w-[500px] mt-4 flex justify-between items-center px-3 py-2 glass rounded-2xl">
-                <div class="flex items-center gap-3">
-                    <button onclick="toggleModal('settingsModal')" class="bg-slate-800 hover:bg-indigo-600/20 p-2.5 rounded-xl transition-all active:scale-90 border border-white/5">
-                        <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5 text-indigo-400" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M10.325 4.317c.426-1.756 2.924-1.756 3.35 0a1.724 1.724 0 002.573 1.066c1.543-.94 3.31.826 2.37 2.37a1.724 1.724 0 001.065 2.572c1.756.426 1.756 2.924 0 3.35a1.724 1.724 0 00-1.066 2.573c.94 1.543-.826 3.31-2.37 2.37a1.724 1.724 0 00-2.572 1.065c-.426 1.756-2.924 1.756-3.35 0a1.724 1.724 0 00-2.573-1.066c-1.543.94-3.31-.826-2.37-2.37a1.724 1.724 0 00-1.065-2.572c-1.756-.426-1.756-2.924 0-3.35a1.724 1.724 0 001.066-2.573c-.94-1.543.826-3.31 2.37-2.37.996.608 2.296.07 2.572-1.065z" /><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" />
-                        </svg>
-                    </button>
-                    <button id="micBtn" onclick="toggleMic()" class="bg-slate-800 hover:bg-rose-600/20 p-2.5 rounded-xl transition-all active:scale-90 border border-white/5">
-                        <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5 text-slate-400" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 11a7 7 0 01-7 7m0 0a7 7 0 01-7-7m7 7v4m0 0H8m4 0h4m-4-8a3 3 0 01-3-3V5a3 3 0 116 0v6a3 3 0 01-3 3z" />
-                        </svg>
-                    </button>
-                    <button id="videoBtn" onclick="toggleVideo()" class="bg-slate-800 hover:bg-indigo-600/20 p-2.5 rounded-xl transition-all active:scale-90 border border-white/5">
-                        <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5 text-slate-400" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 10l4.553-2.276A1 1 0 0121 8.618v6.764a1 1 0 01-1.447.894L15 14M5 18h8a2 2 0 002-2V8a2 2 0 00-2-2H5a2 2 0 00-2 2v8a2 2 0 002 2z" />
-                        </svg>
-                    </button>
-                    <div id="myAvatar" class="w-10 h-10 rounded-xl bg-indigo-600 flex items-center justify-center text-xs font-bold border border-indigo-400/30 transition-all duration-500">A</div>
-                    <span class="text-sm font-bold text-white uppercase tracking-widest">Anda</span>
-                </div>
-                <div id="gameInfo" class="text-indigo-400 font-bold text-[10px] bg-indigo-500/10 px-4 py-1.5 rounded-full border border-indigo-500/20 uppercase tracking-widest">
-                    Siap Bermain
-                </div>
+            <!-- HUD Player info (sudah dipindah ke Social Hub, tapi kita simpan indikator turn di sini) -->
+            <div id="turnIndicator" class="w-full max-w-[500px] mt-4 glass p-4 rounded-2xl flex justify-between items-center">
+                <span id="gameInfo" class="text-xs font-bold text-indigo-400 uppercase tracking-widest italic">Game Standby</span>
+                <button id="endGameBtn" onclick="endGameUI()" class="hidden bg-rose-600 px-4 py-2 rounded-xl text-[10px] font-black uppercase tracking-widest shadow-lg">Quit</button>
             </div>
-
-            <!-- Interaction Tray (Chat & Reactions) -->
-            <div id="interactionTray" class="hidden w-full max-w-[500px] mt-4 flex flex-col gap-3">
-                <div class="flex justify-center gap-2 py-2 glass rounded-2xl">
-                    <button onclick="sendReaction('😂')" class="hover:scale-125 transition">😂</button>
-                    <button onclick="sendReaction('🔥')" class="hover:scale-125 transition">🔥</button>
-                    <button onclick="sendReaction('😮')" class="hover:scale-125 transition">😮</button>
-                    <button onclick="sendReaction('👏')" class="hover:scale-125 transition">👏</button>
-                    <button onclick="sendReaction('😠')" class="hover:scale-125 transition">😠</button>
-                    <button onclick="sendReaction('👍')" class="hover:scale-125 transition">👍</button>
-                </div>
-                <div class="flex flex-col glass rounded-2xl overflow-hidden h-40">
-                    <div id="liveChatBox" class="flex-grow p-3 overflow-y-auto flex flex-col scroll-smooth">
-                        <div class="text-[10px] text-slate-500 italic text-center mb-2">Mulai obrolan...</div>
-                    </div>
-                    <form onsubmit="submitChat(event)" class="flex border-t border-white/5 bg-slate-950/40">
-                        <input id="chatInput" type="text" placeholder="Ketik pesan..." class="bg-transparent flex-grow p-3 text-xs outline-none focus:text-white">
-                        <button type="submit" class="px-4 text-indigo-400 hover:text-white transition">
-                            <svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 19l9 2-9-18-9 18 9-2zm0 0v-8" /></svg>
-                        </button>
-                    </form>
-                </div>
-            </div>
-
-            <button id="endGameBtn" onclick="endGameUI()" class="hidden mt-6 bg-rose-900/40 hover:bg-rose-600 border border-rose-500/30 p-3 px-8 rounded-full text-[10px] font-bold tracking-widest uppercase transition-all active:scale-95 shadow-lg shadow-rose-950/50">AKHIRI PERMAINAN</button>
         </div>
 
         <!-- Sisi Kanan: Panel Kontrol -->
-        <div id="controlPanel" class="flex flex-col space-y-4 order-1 lg:order-2 animate-fade-in">
+        <div id="controlPanel" class="flex flex-col space-y-4 order-1 lg:order-2 animate-fade-in opacity-0 pointer-events-none">
             <div class="glass p-5 rounded-2xl shadow-2xl">
                 <div class="flex justify-between items-center mb-4">
                     <h1 class="text-xl font-bold bg-clip-text text-transparent bg-gradient-to-r from-indigo-400 to-emerald-400">CHESS ONLINE</h1>
@@ -261,15 +292,34 @@
     <script src="https://unpkg.com/peerjs@1.4.7/dist/peerjs.min.js"></script>
 
     <script>
-        // Konfigurasi ID Singkat
-        const APP_PREFIX = "chess-p2p-room-"; // Namespace agar tidak bentrok secara global
-        function generateShortId(length = 6) {
-            const chars = 'ABCDEFGHJKLMNPQRSTUVWXYZ23456789'; // Tanpa I, O, 1, 0 agar tidak membingungkan
-            let result = '';
-            for (let i = 0; i < length; i++) {
-                result += chars.charAt(Math.floor(Math.random() * chars.length));
-            }
-            return result;
+        const APP_PREFIX = "chess-pro-"; 
+        
+        // Global State
+        var board = null;
+        var game = new Chess();
+        var peer = null;
+        var conn = null;
+        var myUsername = localStorage.getItem('chess_username') || "";
+
+        // Tunggu input username sebelum inisialisasi Peer
+        function saveUsername() {
+            const input = $('#userNameInput').val().trim().toLowerCase();
+            if (!input || input.length < 3) return alert("Username minimal 3 karakter!");
+            
+            myUsername = input;
+            localStorage.setItem('chess_username', myUsername);
+            initPeerSystem();
+            $('#usernameOverlay').fadeOut();
+            $('#controlPanel, #chessboardContainer').removeClass('opacity-0 pointer-events-none').addClass('animate-fade-in');
+        }
+
+        // Auto-login jika sudah ada username
+        if (myUsername) {
+            setTimeout(() => {
+                initPeerSystem();
+                $('#usernameOverlay').hide();
+                $('#controlPanel, #chessboardContainer').removeClass('opacity-0 pointer-events-none');
+            }, 500);
         }
 
         // Fix untuk error [Intervention]: Ignored attempt to cancel a touchmove event
@@ -285,13 +335,51 @@
             }
         };
 
-        var board = null
-        var game = new Chess()
-        var peer = new Peer(APP_PREFIX + generateShortId(4)) // Inisialisasi P2P dengan ID 4 Karakter
-        var conn = null
-        var currentPieceTheme = 'wikipedia'
-        var myRole = null // 'w' (white) atau 'b' (black)
-        var selectedSquare = null
+        function initPeerSystem() {
+            peer = new Peer(APP_PREFIX + myUsername);
+            
+            peer.on('open', function(id) {
+                $('#myId').val(myUsername.toUpperCase());
+                $('#socialName').text(myUsername.toUpperCase());
+                $('#socialAvatar').text(myUsername[0].toUpperCase());
+                $('#socialIdDisplay').text("ID: " + myUsername.toUpperCase());
+                log("Sistem Siap. ID: " + myUsername.toUpperCase());
+            });
+
+            peer.on('error', function(err) {
+                if (err.type === 'unavailable-id') {
+                    alert("Username '" + myUsername + "' sudah dipakai orang lain! Silakan pilih nama lain.");
+                    localStorage.removeItem('chess_username');
+                    location.reload();
+                }
+            });
+
+            // Listener koneksi
+            peer.on('connection', function(c) {
+                if (conn) return; 
+                conn = c;
+                myRole = 'w';
+                setupConnection();
+                startGameUI();
+                log("Lawan terhubung!");
+            });
+
+            peer.on('call', function(call) {
+                if (confirm("Lawan memanggil Anda. Terima?")) {
+                    navigator.mediaDevices.getUserMedia({ audio: true, video: true }).then(stream => {
+                        localStream = stream;
+                        call.answer(stream);
+                        handleCall(call);
+                        setMicUI(true);
+                        $('#socialHub').addClass('active');
+                    });
+                }
+            });
+        }
+
+        var currentPieceTheme = 'wikipedia';
+        var myRole = null;
+        var selectedSquare = null;
         var gameActive = false;
         var localStream = null;
         var currentCall = null;
@@ -327,59 +415,16 @@
             updateStatus();
         }
 
-        // 1. Inisialisasi Peer ID
-        peer.on('open', function(id) {
-            // Tampilkan hanya bagian kode singkatnya saja ke user
-            const shortId = id.replace(APP_PREFIX, '');
-            $('#myId').val(shortId);
-            if ($('#gameMode').val() === 'p2p') log("ID Anda siap. Silakan bagikan.");
-        });
-
-        // Handle jika ID sudah terpakai (jarang terjadi tapi mungkin)
-        peer.on('error', function(err) {
-            if (err.type === 'unavailable-id') {
-                log("ID bentrok, mencoba membuat ID baru...");
-                setTimeout(() => location.reload(), 1000);
-            } else {
-                console.error("PeerJS Error:", err);
-            }
-        });
-
-        // 2. Menunggu Koneksi Masuk (Pemain 1)
-        peer.on('connection', function(c) {
-            if (conn) return; // Tolak jika sudah ada pemain lain
-            conn = c;
-            myRole = 'w';
-            $('#oppName').text('Teman (Hitam)');
-            $('#oppAvatar').text('👤').addClass('bg-blue-600').removeClass('bg-slate-700');
-            $('#oppStatus div').addClass('bg-emerald-500').removeClass('bg-slate-600');
-            $('#oppStatus span').text('Online').addClass('text-emerald-500');
-            setupConnection();
-            log("Teman terhubung! Anda sebagai Putih.");
-            updateVisualTurn();
-            startGameUI(); // Fokus ke papan catur
-            $('#gameInfo').text("Giliran Anda (Putih)");
-        }); 
-
-        // 3. Menghubungkan ke Lawan (Pemain 2)
         function connectToPeer() {
             var peerId = $('#peerId').val();
             if ($('#gameMode').val() !== 'p2p') return;
             if (!peerId) return alert("Masukkan ID Lawan dulu!");
             
-            // Tambahkan prefix kembali saat mencoba menghubungkan
-            conn = peer.connect(APP_PREFIX + peerId.toUpperCase().trim());
+            conn = peer.connect(APP_PREFIX + peerId.toLowerCase().trim());
             myRole = 'b';
             setupConnection();
             board.orientation('black');
-            $('#oppName').text('Teman (Putih)');
-            $('#oppAvatar').text('👤').addClass('bg-blue-600').removeClass('bg-slate-700');
-            $('#oppStatus div').addClass('bg-emerald-500').removeClass('bg-slate-600');
-            $('#oppStatus span').text('Online').addClass('text-emerald-500');
-            log("Terhubung ke lawan! Anda sebagai Hitam.");
-            updateVisualTurn();
-            startGameUI(); // Fokus ke papan catur
-            $('#gameInfo').text("Menunggu Putih melangkah...");
+            startGameUI();
         }
 
         function setupConnection() {
@@ -389,7 +434,7 @@
                     board.position(game.fen());
                     handleAfterMove(move);
                 } else if (packet.type === 'chat') {
-                    appendChat(packet.data, false);
+                    appendChatHub(packet.data, false);
                 } else if (packet.type === 'reaction') {
                     showFloatingEmoji(packet.data, false);
                 } else if (packet.type === 'mic-status') {
@@ -408,18 +453,6 @@
                 location.reload();
             });
         }
-
-        // Voice Call Logic
-        peer.on('call', function(call) {
-            if (confirm("Lawan memanggil Anda. Terima panggilan video/suara?")) {
-                navigator.mediaDevices.getUserMedia({ audio: true, video: true }).then(stream => {
-                    localStream = stream;
-                    call.answer(stream); 
-                    handleCall(call);
-                    setMicUI(true);
-                });
-            }
-        });
 
         // Logika Papan Catur
         function onDragStart (source, piece, position, orientation) {
@@ -620,6 +653,36 @@
             }
         }
 
+        // SOCIAL HUB LOGIC
+        window.toggleSocialHub = function() {
+            $('#socialHub').toggleClass('active');
+        }
+
+        window.submitChatHub = function(e) {
+            e.preventDefault();
+            const $input = $('#hubChatInput');
+            const msg = $input.val().trim();
+            if (!msg) return;
+            
+            if (conn) conn.send({ type: 'chat', data: msg });
+            appendChatHub(msg, true);
+            $input.val('');
+        }
+
+        function appendChatHub(msg, isMe) {
+            const $box = $('#hubChatBox');
+            const typeClass = isMe ? 'chat-me' : 'chat-them';
+            const $msg = $('<div class="chat-bubble ' + typeClass + '">' + msg + '</div>');
+            
+            $box.append($msg);
+            $box.scrollTop($box[0].scrollHeight);
+            
+            if (!isMe && !$('#socialHub').hasClass('active')) {
+                // Notif jika chat ditutup
+                log("Pesan baru masuk di Social Hub!");
+            }
+        }
+
         window.toggleVideo = async function() {
             if (!conn) return alert("Harus terhubung dengan lawan dulu!");
             
@@ -665,7 +728,7 @@
 
         function setMicUI(active) {
             micEnabled = active;
-            const $btn = $('#micBtn');
+            const $btn = $('#hubMicBtn');
             const $icon = $btn.find('svg');
             
             if (active) {
@@ -679,7 +742,7 @@
 
         function setVideoUI(active) {
             videoEnabled = active;
-            const $btn = $('#videoBtn');
+            const $btn = $('#hubVideoBtn');
             const $icon = $btn.find('svg');
             
             if (active) {
@@ -712,33 +775,12 @@
             if (!isMe) playSound('check'); // Gunakan sfx skak sebagai notifikasi reaksi
         }
 
-        window.submitChat = function(e) {
-            e.preventDefault();
-            const $input = $('#chatInput');
-            const msg = $input.val().trim();
-            if (!msg) return;
-            
-            if (conn) conn.send({ type: 'chat', data: msg });
-            appendChat(msg, true);
-            $input.val('');
-        }
-
-        function appendChat(msg, isMe) {
-            const $box = $('#liveChatBox');
-            const typeClass = isMe ? 'chat-me' : 'chat-them';
-            const $msg = $('<div class="chat-bubble ' + typeClass + '">' + msg + '</div>');
-            
-            $box.append($msg);
-            $box.scrollTop($box[0].scrollHeight);
-        }
-
         // Fungsi untuk mengelola tampilan UI saat game dimulai/berakhir
         function startGameUI() {
             gameActive = true;
             $('#controlPanel').addClass('hidden');
             $('#chessboardContainer').removeClass('lg:col-span-2').addClass('lg:col-span-3');
             $('#endGameBtn').removeClass('hidden');
-            $('#interactionTray').removeClass('hidden');
             $('#globalResetBtn').addClass('hidden');
         }
 
