@@ -4,61 +4,135 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Chess Online - P2P Edition</title>
-    
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;600;700&family=JetBrains+Mono&display=swap" rel="stylesheet">
+    <link rel="icon" href="data:;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mNkYAAAAAYAAjCB0C8AAAAASUVORK5CYII=">
     <script src="https://cdn.tailwindcss.com"></script>
     <link rel="stylesheet" href="https://unpkg.com/@chrisoakman/chessboardjs@1.0.0/dist/chessboard-1.0.0.min.css">
     
     <style>
-        body { background-color: #0f172a; color: white; }
-        .white-1e1d7 { background-color: #f0d9b5 !important; }
-        .black-3c85d { background-color: #b58863 !important; }
-        #myBoard { border: 8px solid #1e293b; border-radius: 12px; box-shadow: 0 25px 50px -12px rgba(0, 0, 0, 0.5); }
+        :root { --bg-dark: #0f172a; --glass: rgba(30, 41, 59, 0.7); }
+        body { 
+            background: radial-gradient(circle at top right, #1e293b, #0f172a);
+            color: white; 
+            font-family: 'Inter', sans-serif;
+            overscroll-behavior: none;
+        }
+        /* Board Themes Variables */
+        :root { --square-white: #edeed1; --square-black: #779556; }
+        .white-1e1d7 { background-color: var(--square-white) !important; transition: background 0.3s; }
+        .black-3c85d { background-color: var(--square-black) !important; transition: background 0.3s; }
+        
+        #myBoard { 
+            border: 6px solid #1e293b; 
+            border-radius: 12px; 
+            overflow: hidden;
+            box-shadow: 0 25px 50px -12px rgba(0, 0, 0, 0.5);
+            touch-action: none;
+        }
+        .highlight-sq { box-shadow: inset 0 0 0 4px rgba(253, 224, 71, 0.8) !important; }
+        .possible-move { background-color: rgba(0, 0, 0, 0.2); border-radius: 50%; width: 20%; height: 20%; margin: 40%; }
+        input, button { touch-action: manipulation; }
+        .glass { background: var(--glass); backdrop-filter: blur(12px); border: 1px solid rgba(255,255,255,0.1); }
+        .status-pill { transition: all 0.3s ease; }
+        ::-webkit-scrollbar { width: 4px; }
+        ::-webkit-scrollbar-track { background: transparent; }
+        ::-webkit-scrollbar-thumb { background: #475569; border-radius: 10px; }
+        /* Agar papan pas di HP */
+        @media (max-width: 640px) { #myBoard { width: 92vw !important; height: 92vw !important; } }
+
+        .check-sq { background: radial-gradient(circle, #f43f5e 0%, #9f1239 100%) !important; }
+        
+        /* Modal Styles */
+        .modal { display: none; position: fixed; inset: 0; background: rgba(0,0,0,0.85); backdrop-filter: blur(8px); z-index: 50; align-items: center; justify-content: center; }
+        .modal.active { display: flex; }
+        .btn-active { transform: scale(0.95); opacity: 0.8; }
     </style>
 </head>
 <body class="min-h-screen flex items-center justify-center p-4">
 
+    <!-- Sound Effects -->
+    <audio id="sfx-move" src="https://cdn.jsdelivr.net/gh/lichess-org/lila@master/public/sound/standard/Move.mp3"></audio>
+    <audio id="sfx-capture" src="https://cdn.jsdelivr.net/gh/lichess-org/lila@master/public/sound/standard/Capture.mp3"></audio>
+    <audio id="sfx-check" src="https://cdn.jsdelivr.net/gh/lichess-org/lila@master/public/sound/standard/Check.mp3"></audio>
+    <audio id="sfx-gameover" src="https://cdn.jsdelivr.net/gh/lichess-org/lila@master/public/sound/standard/GenericNotify.mp3"></audio>
+
     <div class="max-w-5xl w-full grid grid-cols-1 lg:grid-cols-3 gap-8">
         
         <!-- Sisi Kiri: Papan -->
-        <div class="lg:col-span-2 flex flex-col items-center">
+        <div class="lg:col-span-2 flex flex-col items-center justify-center order-2 lg:order-1">
+            <!-- HUD Atas (Lawan) -->
+            <div class="w-full max-w-[500px] mb-4 flex justify-between items-center px-2">
+                <div class="flex items-center gap-2">
+                    <div id="oppAvatar" class="w-10 h-10 rounded-full bg-slate-700 flex items-center justify-center text-xs font-bold border-2 border-slate-600 ring-2 ring-transparent transition-all">L</div>
+                    <span id="oppName" class="text-sm font-bold text-slate-400">Menunggu Lawan...</span>
+                </div>
+                <div id="oppStatus" class="flex items-center gap-2 px-3 py-1 bg-slate-900/50 rounded-full border border-white/5">
+                    <div class="w-2 h-2 rounded-full bg-slate-600 animate-pulse"></div>
+                    <span class="text-[10px] uppercase font-bold text-slate-500">Offline</span>
+                </div>
+            </div>
+
             <div id="myBoard" class="w-full max-w-[500px]"></div>
-            <div id="gameInfo" class="mt-4 text-emerald-400 font-bold text-lg">Menunggu koneksi...</div>
+            
+            <!-- HUD Bawah (Anda) -->
+            <div class="w-full max-w-[500px] mt-4 flex justify-between items-center px-2">
+                <div class="flex items-center gap-3">
+                    <button onclick="toggleModal('settingsModal')" class="bg-slate-800 hover:bg-slate-700 p-2.5 rounded-xl transition-all active:scale-90 border border-white/5 shadow-lg">
+                        <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5 text-slate-400" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M10.325 4.317c.426-1.756 2.924-1.756 3.35 0a1.724 1.724 0 002.573 1.066c1.543-.94 3.31.826 2.37 2.37a1.724 1.724 0 001.065 2.572c1.756.426 1.756 2.924 0 3.35a1.724 1.724 0 00-1.066 2.573c.94 1.543-.826 3.31-2.37 2.37a1.724 1.724 0 00-2.572 1.065c-.426 1.756-2.924 1.756-3.35 0a1.724 1.724 0 00-2.573-1.066c-1.543.94-3.31-.826-2.37-2.37a1.724 1.724 0 00-1.065-2.572c-1.756-.426-1.756-2.924 0-3.35a1.724 1.724 0 001.066-2.573c-.94-1.543.826-3.31 2.37-2.37.996.608 2.296.07 2.572-1.065z" /><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" />
+                        </svg>
+                    </button>
+                    <div class="w-10 h-10 rounded-full bg-emerald-600 flex items-center justify-center text-xs font-bold shadow-lg shadow-emerald-900/40 border-2 border-emerald-400/20">A</div>
+                    <span class="text-sm font-bold text-white uppercase tracking-widest">Anda</span>
+                </div>
+                <div id="gameInfo" class="text-emerald-400 font-bold text-[11px] bg-emerald-500/10 px-4 py-1.5 rounded-full border border-emerald-500/20 uppercase tracking-tighter">
+                    Siap Bermain
+                </div>
+            </div>
         </div>
 
         <!-- Sisi Kanan: Panel Kontrol -->
-        <div class="flex flex-col space-y-4">
-            <div class="bg-slate-800 p-6 rounded-2xl shadow-xl border border-slate-700">
-                <h1 class="text-2xl font-bold mb-4">Chess Online 🌐</h1>
+        <div class="flex flex-col space-y-4 order-1 lg:order-2">
+            <div class="glass p-5 rounded-2xl shadow-2xl">
+                <div class="flex justify-between items-center mb-4">
+                    <h1 class="text-xl font-bold bg-clip-text text-transparent bg-gradient-to-r from-emerald-400 to-cyan-400">CHESS ONLINE</h1>
+                    <select id="gameMode" class="bg-slate-900/50 text-[10px] p-2 rounded-lg border border-slate-700 focus:outline-none uppercase tracking-widest font-bold">
+                        <option value="p2p">🌐 Mabar</option>
+                        <option value="ai">🤖 Komputer</option>
+                    </select>
+                </div>
                 
                 <!-- Setup Koneksi -->
-                <div class="space-y-4">
-                    <div>
-                        <label class="block text-xs text-slate-400 mb-1">ID ANDA (Kirim ke teman):</label>
+                <div id="p2pControls" class="space-y-4">
+                    <div class="bg-slate-900/40 p-3 rounded-xl border border-white/5">
+                        <label class="block text-[10px] text-slate-500 mb-2 font-bold tracking-widest uppercase">ID Anda</label>
                         <div class="flex gap-2">
-                            <input id="myId" readonly class="bg-slate-900 border border-slate-700 p-2 rounded w-full text-sm text-yellow-400 font-mono">
+                            <input id="myId" readonly class="bg-transparent w-full text-[13px] text-yellow-400 font-mono focus:outline-none select-all" value="...">
+                            <button id="copyBtn" onclick="copyId()" class="text-[10px] text-white bg-slate-700 px-3 py-1 rounded-lg hover:bg-slate-600 transition active:scale-95 font-bold uppercase">Salin</button>
                         </div>
                     </div>
-
-                    <hr class="border-slate-700">
-
-                    <div>
-                        <label class="block text-xs text-slate-400 mb-1">ID LAWAN:</label>
-                        <div class="flex gap-2">
-                            <input id="peerId" type="text" placeholder="Masukkan ID teman..." class="bg-slate-900 border border-slate-700 p-2 rounded w-full text-sm outline-none focus:border-emerald-500 text-white">
-                            <button onclick="connectToPeer()" class="bg-emerald-600 hover:bg-emerald-500 px-4 py-2 rounded text-sm font-bold transition">Hubungkan</button>
-                        </div>
+                    <div class="flex flex-col gap-2">
+                        <input id="peerId" type="text" placeholder="Masukkan ID teman..." class="bg-slate-900/80 border border-slate-700 p-3 rounded-xl text-[13px] outline-none focus:border-emerald-500/50 text-white transition-all">
+                        <button onclick="connectToPeer()" class="bg-gradient-to-r from-emerald-600 to-teal-600 hover:from-emerald-500 hover:to-teal-500 p-3 rounded-xl text-xs font-bold transition-all shadow-lg shadow-emerald-900/20 active:scale-95">HUBUNGKAN SEKARANG</button>
                     </div>
+                </div>
+
+                <div id="aiControls" class="hidden space-y-3">
+                    <div class="p-4 bg-emerald-500/10 rounded-xl border border-emerald-500/20">
+                        <p class="text-[11px] text-emerald-400 leading-relaxed">Mode Latihan AI: Komputer akan merespon secara instan. Anda bermain sebagai Putih.</p>
+                    </div>
+                    <button onclick="resetGame()" class="w-full bg-slate-800 hover:bg-slate-700 p-3.5 rounded-xl text-xs font-bold transition-all border border-white/5">MULAI GAME BARU</button>
                 </div>
             </div>
 
-            <div class="bg-slate-800 p-6 rounded-2xl shadow-xl border border-slate-700 flex-grow">
-                <h2 class="font-semibold mb-2">Log Permainan</h2>
-                <div id="status-box" class="text-sm text-slate-300 space-y-1 h-40 overflow-y-auto font-mono">
-                    <li>Buka game ini di dua tab atau dua komputer berbeda untuk mencoba.</li>
+            <div class="glass p-5 rounded-2xl shadow-xl flex-grow overflow-hidden flex flex-col">
+                <h2 class="text-[10px] font-bold text-slate-500 tracking-widest uppercase mb-3">Log Aktivitas</h2>
+                <div id="status-box" class="text-[11px] text-slate-300 space-y-2 h-28 lg:h-40 overflow-y-auto font-mono">
+                    <div class="text-slate-500 italic">Siap menerima tantangan...</div>
                 </div>
             </div>
             
-            <button onclick="location.reload()" class="bg-slate-700 hover:bg-slate-600 p-2 rounded-lg text-xs">Muat Ulang (Reset Semua)</button>
+            <button onclick="location.reload()" class="text-slate-600 hover:text-rose-400 text-[9px] font-bold tracking-[0.2em] uppercase transition-colors">Muat Ulang / Reset Sistem</button>
         </div>
     </div>
 
@@ -73,12 +147,40 @@
         var game = new Chess()
         var peer = new Peer() // Inisialisasi P2P
         var conn = null
+        var currentPieceTheme = 'wikipedia'
         var myRole = null // 'w' (white) atau 'b' (black)
+        var selectedSquare = null
+
+        // Toggle Mode UI
+        $('#gameMode').on('change', function() {
+            const mode = $(this).val();
+            if (mode === 'ai') {
+                $('#p2pControls').addClass('hidden');
+                $('#aiControls').removeClass('hidden');
+                resetGame();
+                myRole = 'w';
+                $('#oppName').text('Komputer (AI)');
+                $('#oppAvatar').text('🤖').addClass('bg-emerald-600').removeClass('bg-slate-700');
+                $('#oppStatus div').addClass('bg-emerald-500').removeClass('bg-slate-600');
+                $('#gameInfo').text("Mode AI: Giliran Anda");
+            } else {
+                $('#p2pControls').removeClass('hidden');
+                $('#aiControls').addClass('hidden');
+                location.reload();
+            }
+        });
+
+        function resetGame() {
+            game.reset();
+            board.start();
+            removeHighlights();
+            updateStatus();
+        }
 
         // 1. Inisialisasi Peer ID
         peer.on('open', function(id) {
             $('#myId').val(id)
-            log("ID Anda siap. Silakan bagikan.");
+            if ($('#gameMode').val() === 'p2p') log("ID Anda siap. Silakan bagikan.");
         });
 
         // 2. Menunggu Koneksi Masuk (Pemain 1)
@@ -86,20 +188,29 @@
             if (conn) return; // Tolak jika sudah ada pemain lain
             conn = c;
             myRole = 'w';
+            $('#oppName').text('Teman (Hitam)');
+            $('#oppAvatar').text('👤').addClass('bg-blue-600').removeClass('bg-slate-700');
+            $('#oppStatus div').addClass('bg-emerald-500').removeClass('bg-slate-600');
+            $('#oppStatus span').text('Online').addClass('text-emerald-500');
             setupConnection();
             log("Teman terhubung! Anda sebagai Putih.");
             $('#gameInfo').text("Giliran Anda (Putih)");
-        });
+        }); 
 
         // 3. Menghubungkan ke Lawan (Pemain 2)
         function connectToPeer() {
             var peerId = $('#peerId').val();
+            if ($('#gameMode').val() !== 'p2p') return;
             if (!peerId) return alert("Masukkan ID Lawan dulu!");
             
             conn = peer.connect(peerId);
             myRole = 'b';
             setupConnection();
             board.orientation('black');
+            $('#oppName').text('Teman (Putih)');
+            $('#oppAvatar').text('👤').addClass('bg-blue-600').removeClass('bg-slate-700');
+            $('#oppStatus div').addClass('bg-emerald-500').removeClass('bg-slate-600');
+            $('#oppStatus span').text('Online').addClass('text-emerald-500');
             log("Terhubung ke lawan! Anda sebagai Hitam.");
             $('#gameInfo').text("Menunggu Putih melangkah...");
         }
@@ -107,20 +218,25 @@
         function setupConnection() {
             conn.on('data', function(data) {
                 // Menerima langkah dari lawan
-                game.move(data);
+                var move = game.move(data);
                 board.position(game.fen());
-                updateStatus();
+                handleAfterMove(move);
             });
-            
+
             conn.on('open', function() {
                 updateStatus();
+            });
+
+            conn.on('close', function() {
+                log("Koneksi terputus.");
+                location.reload();
             });
         }
 
         // Logika Papan Catur
         function onDragStart (source, piece, position, orientation) {
             if (game.game_over()) return false;
-            if (!conn) return false; // Jangan jalan sebelum terhubung
+            if ($('#gameMode').val() === 'p2p' && !conn) return false;
             
             // Hanya bisa jalan jika giliran sesuai role
             if ((myRole === 'w' && piece.search(/^b/) !== -1) ||
@@ -128,6 +244,9 @@
                 (game.turn() !== myRole)) {
                 return false;
             }
+            
+            selectedSquare = source;
+            showPossibleMoves(source);
         }
 
         function onDrop (source, target) {
@@ -139,13 +258,114 @@
 
             if (move === null) return 'snapback'
 
-            // Kirim langkah ke lawan via P2P
-            conn.send(move);
-            updateStatus();
+            removeHighlights();
+            
+            if ($('#gameMode').val() === 'p2p' && conn) {
+                conn.send(move);
+            }
+            
+            handleAfterMove(move);
+
+            // Jika Lawan Komputer
+            if ($('#gameMode').val() === 'ai' && !game.game_over()) {
+                window.setTimeout(makeComputerMove, 500);
+            }
         }
 
         function onSnapEnd () {
             board.position(game.fen())
+        }
+
+        // Logika Klik (Touch Support)
+        $(document).on('click', '.square-55d63', function() {
+            if ($('#gameMode').val() === 'p2p' && !conn) return;
+            
+            var square = $(this).data('square');
+
+            // Jika sudah ada yang dipilih, coba melangkah
+            if (selectedSquare) {
+                var move = game.move({
+                    from: selectedSquare,
+                    to: square,
+                    promotion: 'q' // otomatis ratu untuk HP agar simpel
+                });
+
+                if (move === null) {
+                    // Jika klik kotak lain yang ada pion kita, pindah seleksi
+                    var piece = game.get(square);
+                    if (piece && piece.color === myRole) {
+                        selectedSquare = square;
+                        showPossibleMoves(square);
+                    } else {
+                        selectedSquare = null;
+                        removeHighlights();
+                    }
+                } else {
+                    // Langkah valid
+                    board.position(game.fen());
+                    removeHighlights();
+                    if ($('#gameMode').val() === 'p2p' && conn) conn.send(move);
+                    handleAfterMove(move);
+                    selectedSquare = null;
+                    
+                    if ($('#gameMode').val() === 'ai' && !game.game_over()) {
+                        window.setTimeout(makeComputerMove, 500);
+                    }
+                }
+            } else {
+                // Seleksi pertama
+                var piece = game.get(square);
+                if (piece && piece.color === myRole && game.turn() === myRole) {
+                    selectedSquare = square;
+                    showPossibleMoves(square);
+                }
+            }
+        });
+
+        function showPossibleMoves(sq) {
+            removeHighlights();
+            var moves = game.moves({ square: sq, verbose: true });
+            if (moves.length === 0) return;
+
+            $('#myBoard .square-' + sq).addClass('highlight-sq');
+            for (var i = 0; i < moves.length; i++) {
+                $('#myBoard .square-' + moves[i].to).append('<div class="possible-move"></div>');
+            }
+        }
+
+        function removeHighlights() {
+            $('#myBoard .square-55d63').removeClass('highlight-sq');
+            $('.possible-move').remove();
+            $('.check-sq').removeClass('check-sq');
+        }
+
+        // AI Sederhana
+        function makeComputerMove() {
+            var possibleMoves = game.moves();
+            if (possibleMoves.length === 0) return;
+
+            // Cari langkah "makan" atau acak
+            var randomIdx = Math.floor(Math.random() * possibleMoves.length);
+            var move = possibleMoves[randomIdx];
+            
+            game.move(move);
+            board.position(game.fen());
+            handleAfterMove(move);
+            log("AI Melangkah: " + move);
+        }
+
+        // Fungsi Gabungan Setelah Langkah Selesai
+        function handleAfterMove(move) {
+            updateStatus();
+            
+            if (!move) return;
+
+            // Suara
+            if (move.captured) playSound('capture');
+            else if (game.in_check()) playSound('check');
+            else playSound('move');
+            
+            if (game.game_over()) setTimeout(() => playSound('gameover'), 500);
         }
 
         function updateStatus() {
@@ -156,15 +376,79 @@
             else if (game.in_draw()) statusText = "GAME OVER: Remis!";
             
             $('#gameInfo').text(statusText);
-            log("Langkah: " + (game.history().slice(-1)[0] || "Game Dimulai"));
+
+            $('.check-sq').removeClass('check-sq');
+            
+            // Visual Check (Highlight Raja jika skak)
+            if (game.in_check()) {
+                var color = game.turn();
+                var kingPos = findKing(color);
+                $('.square-' + kingPos).addClass('check-sq');
+            }
+
+            if (game.history().length > 0) log("Langkah: " + game.history().slice(-1)[0]);
+        }
+
+        function findKing(color) {
+            for (var i = 0; i < 8; i++) {
+                for (var j = 0; j < 8; j++) {
+                    var square = String.fromCharCode(97 + i) + (j + 1); 
+                    var piece = game.get(square);
+                    if (piece && piece.type === 'k' && piece.color === color) return square;
+                }
+            }
+        }
+
+        function applyTheme(white, black, btn) {
+            document.documentElement.style.setProperty('--square-white', white);
+            document.documentElement.style.setProperty('--square-black', black);
+            $('.theme-btn').removeClass('active border-emerald-500/50').addClass('border-white/5');
+            $(btn).addClass('active border-emerald-500/50').removeClass('border-white/5');
+        }
+
+        function applyPieces(type, btn) {
+            currentPieceTheme = type;
+            $('.piece-btn').removeClass('active border-emerald-500/50').addClass('border-white/5');
+            $(btn).addClass('active border-emerald-500/50').removeClass('border-white/5');
+            
+            var currentPos = board.position();
+            var currentOri = board.orientation();
+            board.destroy();
+            
+            config.pieceTheme = 'https://chessboardjs.com/img/chesspieces/' + type + '/{piece}.png';
+            board = Chessboard('myBoard', config);
+            board.position(currentPos, false);
+            board.orientation(currentOri);
+        }
+
+        function playSound(id) {
+            document.getElementById('sfx-' + id).play();
+        }
+
+        function toggleModal(id) {
+            $('#' + id).toggleClass('active');
+        }
+
+        function copyId() {
+            var idVal = $('#myId').val();
+            navigator.clipboard.writeText(idVal);
+            
+            const $btn = $('#copyBtn');
+            const originalText = $btn.text();
+            $btn.text("OK!").addClass('bg-emerald-600');
+            setTimeout(() => {
+                $btn.text(originalText).removeClass('bg-emerald-600');
+            }, 2000);
         }
 
         function log(msg) {
-            $('#status-box').prepend('<div>> ' + msg + '</div>');
+            $('#status-box').prepend('<div class="flex gap-2"><span class="text-emerald-500">→</span><span>' + msg + '</span></div>');
         }
 
-        var config = {
+        // Inisialisasi Papan Pertama Kali
+        config = {
             draggable: true,
+            moveSpeed: 'slow',
             position: 'start',
             onDragStart: onDragStart,
             onDrop: onDrop,
@@ -172,6 +456,13 @@
             pieceTheme: 'https://chessboardjs.com/img/chesspieces/wikipedia/{piece}.png'
         }
         board = Chessboard('myBoard', config)
+
+        // Handle Resize agar pas di layar HP
+        $(window).resize(function() {
+            board.resize();
+        });
+        setTimeout(() => board.resize(), 500);
     </script>
 </body>
 </html>
+
