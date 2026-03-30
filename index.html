@@ -76,6 +76,9 @@
             transform: scale(1.05);
         }
 
+        .mic-active { color: #fb7185 !important; filter: drop-shadow(0 0 8px rgba(251, 113, 133, 0.6)); animation: pulse 1.5s infinite; }
+        @keyframes pulse { 0% { opacity: 1; } 50% { opacity: 0.5; } 100% { opacity: 1; } }
+
         @keyframes fadeIn {
             from { opacity: 0; transform: translateY(10px); }
             to { opacity: 1; transform: translateY(0); }
@@ -120,6 +123,8 @@
     <audio id="sfx-check" src="https://cdn.jsdelivr.net/gh/lichess-org/lila@master/public/sound/standard/Check.mp3"></audio>
     <audio id="sfx-gameover" src="https://cdn.jsdelivr.net/gh/lichess-org/lila@master/public/sound/standard/GenericNotify.mp3"></audio>
 
+    <audio id="remoteAudio" autoplay></audio>
+
     <div class="max-w-5xl w-full grid grid-cols-1 lg:grid-cols-3 gap-8">
         
         <!-- Sisi Kiri: Papan -->
@@ -148,6 +153,11 @@
                     <button onclick="toggleModal('settingsModal')" class="bg-slate-800 hover:bg-indigo-600/20 p-2.5 rounded-xl transition-all active:scale-90 border border-white/5">
                         <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5 text-indigo-400" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                             <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M10.325 4.317c.426-1.756 2.924-1.756 3.35 0a1.724 1.724 0 002.573 1.066c1.543-.94 3.31.826 2.37 2.37a1.724 1.724 0 001.065 2.572c1.756.426 1.756 2.924 0 3.35a1.724 1.724 0 00-1.066 2.573c.94 1.543-.826 3.31-2.37 2.37a1.724 1.724 0 00-2.572 1.065c-.426 1.756-2.924 1.756-3.35 0a1.724 1.724 0 00-2.573-1.066c-1.543.94-3.31-.826-2.37-2.37a1.724 1.724 0 00-1.065-2.572c-1.756-.426-1.756-2.924 0-3.35a1.724 1.724 0 001.066-2.573c-.94-1.543.826-3.31 2.37-2.37.996.608 2.296.07 2.572-1.065z" /><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" />
+                        </svg>
+                    </button>
+                    <button id="micBtn" onclick="toggleMic()" class="bg-slate-800 hover:bg-rose-600/20 p-2.5 rounded-xl transition-all active:scale-90 border border-white/5">
+                        <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5 text-slate-400" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 11a7 7 0 01-7 7m0 0a7 7 0 01-7-7m7 7v4m0 0H8m4 0h4m-4-8a3 3 0 01-3-3V5a3 3 0 116 0v6a3 3 0 01-3 3z" />
                         </svg>
                     </button>
                     <div id="myAvatar" class="w-10 h-10 rounded-xl bg-indigo-600 flex items-center justify-center text-xs font-bold border border-indigo-400/30 transition-all duration-500">A</div>
@@ -268,6 +278,9 @@
         var myRole = null // 'w' (white) atau 'b' (black)
         var selectedSquare = null
         var gameActive = false;
+        var localStream = null;
+        var currentCall = null;
+        var micEnabled = false;
 
         // Toggle Mode UI
         $('#gameMode').on('change', function() {
@@ -354,7 +367,7 @@
         }
 
         function setupConnection() {
-            conn.on('data', function(data) {
+            conn.on('data', function(packet) {
                 if (packet.type === 'move') {
                     var move = game.move(packet.data);
                     board.position(game.fen());
@@ -363,6 +376,10 @@
                     appendChat(packet.data, false);
                 } else if (packet.type === 'reaction') {
                     showFloatingEmoji(packet.data, false);
+                } else if (packet.type === 'mic-status') {
+                    if (packet.data === 'request') {
+                        log("Lawan ingin memulai voice chat...");
+                    }
                 }
             });
 
@@ -375,6 +392,18 @@
                 location.reload();
             });
         }
+
+        // Voice Call Logic
+        peer.on('call', function(call) {
+            if (confirm("Lawan memanggil Anda. Terima panggilan suara?")) {
+                navigator.mediaDevices.getUserMedia({ audio: true }).then(stream => {
+                    localStream = stream;
+                    call.answer(stream);
+                    handleCall(call);
+                    setMicUI(true);
+                });
+            }
+        });
 
         // Logika Papan Catur
         function onDragStart (source, piece, position, orientation) {
@@ -543,6 +572,62 @@
                     var piece = game.get(square);
                     if (piece && piece.type === 'k' && piece.color === color) return square;
                 }
+            }
+        }
+
+        // Mic Features
+        window.toggleMic = async function() {
+            if (!conn) return alert("Harus terhubung dengan lawan dulu!");
+            
+            if (micEnabled) {
+                // Matikan Mic
+                if (localStream) {
+                    localStream.getTracks().forEach(track => track.stop());
+                }
+                if (currentCall) currentCall.close();
+                setMicUI(false);
+            } else {
+                // Hidupkan Mic
+                try {
+                    const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+                    localStream = stream;
+                    const call = peer.call(conn.peer, stream);
+                    handleCall(call);
+                    setMicUI(true);
+                    conn.send({ type: 'mic-status', data: 'request' });
+                } catch (err) {
+                    alert("Gagal mengakses mikrofon. Pastikan izin diberikan.");
+                    console.error(err);
+                }
+            }
+        }
+
+        function handleCall(call) {
+            currentCall = call;
+            call.on('stream', function(remoteStream) {
+                const audio = document.getElementById('remoteAudio');
+                audio.srcObject = remoteStream;
+                // Browser butuh interaksi user untuk autoplay audio
+                audio.play().catch(e => console.log("Audio play blocked, waiting for interaction"));
+            });
+            
+            call.on('close', () => {
+                setMicUI(false);
+                log("Panggilan suara berakhir.");
+            });
+        }
+
+        function setMicUI(active) {
+            micEnabled = active;
+            const $btn = $('#micBtn');
+            const $icon = $btn.find('svg');
+            
+            if (active) {
+                $icon.addClass('mic-active');
+                $btn.addClass('border-rose-500/50 bg-rose-500/10');
+            } else {
+                $icon.removeClass('mic-active');
+                $btn.removeClass('border-rose-500/50 bg-rose-500/10');
             }
         }
 
